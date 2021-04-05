@@ -26,6 +26,15 @@ class NetBanLocalFile(object):
 		self.r = aioredis.create_redis('redis://localhost/%d' % redis_db_num)
 		self.r.config_set('notify-keyspace-events', 'Ex')
 		self.__logger.info("Created new connection to redis database %d." % redis_db_num)
+		asyncio.ensure_future(self.processExpiry())
+		self.__logger.info("Created future to handle IP ban expiry.")
+
+	async def processExpiry(self):
+		"""Subscribe to redis keyspace expiry events to remove the IP."""
+		res = await self.r.subscribe('__keyevent@%d__:expired' % self.cfg.get_redis_db())
+		chan = res[0]
+		while await chan.wait_message():
+			await self.ban_manager.unban(chan.get())
 
 	def processUpdate(self):
 		"""Called by NetBanLocalEventHandler when there is a new event on the
