@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import pyinotify
-import redis
+import aioredis
+import asyncio
 import logging
 import os
 
@@ -22,7 +23,8 @@ class NetBanLocalFile(object):
 		self.wdd = wm.add_watch(self.file_to_watch, self.mask, rec=False)
 		self.__logger.info("Created new async iNotifier to watch <%s>." % self.file_to_watch)
 		redis_db_num = cfg.get_redis_db()
-		self.r = redis.StrictRedis(db=redis_db_num)
+		self.r = aioredis.create_redis('redis://localhost/%d' % redis_db_num)
+		self.r.config_set('notify-keyspace-events', 'Ex')
 		self.__logger.info("Created new connection to redis database %d." % redis_db_num)
 
 	def processUpdate(self):
@@ -48,7 +50,9 @@ class NetBanLocalFile(object):
 
 	async def evaluateIp(self, ip):
 		"""Determine if an IP has had enough hits to ban it."""
-		raise NotImplementedError("Not finished yet.")
+		n = await self.r.incr(ip)
+		await self.r.expire(ip, self.cfg.get_ip_timeout())
+		return n >= self.cfg.get_ip_limit()
 
 
 class NetBanLocalEventHandler(pyinotify.ProcessEvent):

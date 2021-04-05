@@ -20,3 +20,11 @@ class NetBanConfig(object):
 	def get_redis_db(self):
 		"""Convenience method for getting the redis db to use."""
 		raise NotImplementedError("Not yet finised.")
+
+	def get_ip_timeout(self):
+		"""Convenience method for getting the timeout period for a single ip."""
+		raise NotImplementedError("Not yet finished.")
+
+	def get_ip_limit(self):
+		"""Convenience method for getting the max failed attempts for a single ip."""
+		raise NotImplementedError("Not yet finished.")
