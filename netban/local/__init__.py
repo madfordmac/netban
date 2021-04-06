@@ -36,7 +36,7 @@ class NetBanLocalFile(object):
 		while await chan.wait_message():
 			await self.ban_manager.unban(chan.get())
 
-	def processUpdate(self):
+	async def processUpdate(self):
 		"""Called by NetBanLocalEventHandler when there is a new event on the
 		watched file to process the new lines."""
 		size = os.stat(self.file_to_watch).st_size
@@ -72,5 +72,5 @@ class NetBanLocalEventHandler(pyinotify.ProcessEvent):
 		super(NetBanLocalEventHandler, self).__init__()
 		self.nblf = nblf
 
-	def process_default(self, event):
-		self.nblf.processUpdate()
+	async def process_default(self, event):
+		await self.nblf.processUpdate()
