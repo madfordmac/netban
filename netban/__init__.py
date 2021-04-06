@@ -16,23 +16,23 @@ class NetBanConfig(object):
 
 	def get_local_file(self):
 		"""Convenience method for getting the local file to watch."""
-		self.cfg['local'].get('file')
+		return self.cfg['local'].get('file')
 
 	def get_redis_db(self):
 		"""Convenience method for getting the redis db to use."""
-		self.cfg['local'].getint('db')
+		return self.cfg['local'].getint('db')
 
 	def get_ip_timeout(self):
 		"""Convenience method for getting the timeout period for a single ip."""
-		self.cfg['local'].getint('timeout')
+		return self.cfg['local'].getint('timeout')
 
 	def get_ip_limit(self):
 		"""Convenience method for getting the max failed attempts for a single ip."""
-		self.cfg['local'].getint('limit')
+		return self.cfg['local'].getint('limit')
 
 	def get_rule_number(self):
 		"""Convenience function for getting the location to insert rules in iptables."""
-		self.cfg['general'].getint('rulenum')
+		return self.cfg['general'].getint('rulenum')
 
 class NetBanManager(object):
 	"""Interface with iptables/ipset to manage bans"""

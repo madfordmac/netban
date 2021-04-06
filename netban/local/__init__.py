@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import pyinotify
+import re
 import aioredis
 import asyncio
 import logging
@@ -20,10 +21,10 @@ class NetBanLocalFile(object):
 		self.notifier = pyinotify.AsyncNotifier(self.wm, NetBanLocalEventHandler(self))
 		self.file_to_watch = cfg.get_local_file()
 		self.last_offset = os.stat(self.file_to_watch).st_size
-		self.wdd = wm.add_watch(self.file_to_watch, self.mask, rec=False)
+		self.wdd = self.wm.add_watch(self.file_to_watch, self.mask, rec=False)
 		self.__logger.info("Created new async iNotifier to watch <%s>." % self.file_to_watch)
 		redis_db_num = cfg.get_redis_db()
-		self.r = aioredis.create_redis('redis://localhost/%d' % redis_db_num)
+		self.r = aioredis.create_redis('redis://localhost/%d' % redis_db_num) # This returns a coroutine. Needs to be awaited instead.
 		self.r.config_set('notify-keyspace-events', 'Ex')
 		self.__logger.info("Created new connection to redis database %d." % redis_db_num)
 		asyncio.ensure_future(self.processExpiry())
