@@ -48,38 +48,52 @@ class NetBanManager(object):
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','create','netbanlocal','hash:ip')
 		r = await p.wait()
 		assert r == 0, "Creation of netbanlocal set failed."
+		self.__logger.debug("Created netbanlocal set.")
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','create','netbannet','hash:net')
 		r = await p.wait()
 		assert r == 0, "Creation of netbannet set failed."
+		self.__logger.debug("Created netbannet set.")
 		# Add sets to iptables 
 		insert_at = self.cfg.get_rule_number()
 		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT',f'{insert_at:d}','-m','set','--match-set','netbanlocal','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbanlocal rule failed."
+		self.__logger.debug("Added netbanlocal rule.")
 		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT',f'{insert_at:d}','-m','set','--match-set','netbannet','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbannet rule failed."
+		self.__logger.debug("Added netbannet rule.")
+
+		self.initialized = True
 
 	async def ban(ip):
 		"""Add an IP address to the ban set."""
+		self.__logger.debug("Received request to ban ip %s." % ip)
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','add','netbanlocal',ip)
 		r = await p.wait()
 		assert r == 0, "Adding %s to netbanlocal set failed." % ip
+		self.__logger.debug("%s added to netbanlocal set." % ip)
 
 	async def unban(ip):
 		"""Remove an IP address from the ban set."""
+		self.__logger.debug("Received request to unban ip %s." % ip)
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','del','netbanlocal',ip)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbanlocal set failed." % ip
+		self.__logger.debug("%s removed from netbanlocal set." % ip)
 
 	async def netban(cidr):
 		"""Add a CIDR-notation net to the ban set."""
+		self.__logger.debug("Received request to ban net %s." % cidr)
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','add','netbannet',cidr)
 		r = await p.wait()
 		assert r == 0, "Adding %s to netbannet set failed." % cidr
+		self.__logger.debug("%s added to netbannet set." % cidr)
 
 	async def netunban(cidr):
 		"""Remove a CIDR-notation net from the ban set."""
+		self.__logger.debug("Received request to unban net %s." % cidr)
 		p = await asyncio.create_subprocess_exec('/usr/sbin/ipset','del','netbannet',cidr)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbannet set failed." % cidr
+		self.__logger.debug("%s removed from netbannet set." % cidr)

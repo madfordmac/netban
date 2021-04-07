@@ -47,16 +47,23 @@ class NetBanLocalFile(object):
 		watched file to process the new lines."""
 		size = os.stat(self.file_to_watch).st_size
 		if size == self.last_offset:
+			self.__logger.debug("New file size equal to last offset; nothing to do.")
 			return
+		else:
+			self.__logger.debug(f"Last offset at {self.last_offset:d}; file now {size:d}.")
 		lines = []
 		with open(self.file_to_watch, 'r') as logfile:
 			if size > self.last_offset:
+				self.__logger.debug(f"Seeking to {self.last_offset:d} bytes.")
 				logfile.seek(self.last_offset)
 			lines = logfile.readlines()
+			self.__logger.debug("Read %d new lines." % len(lines))
 			self.last_offset = logfile.tell()
+			self.__logger.debug(f"Offset updated to {self.last_offset:d}.")
 		for line in lines:
 			m = self.fail_re.search(line)
 			if m:
+				self.__logger.debug(f"Line matched failure pattern: {line:s}")
 				ip = m.group('ip')
 				ban = await self.evaluateIp(ip)
 				if ban:
@@ -67,6 +74,7 @@ class NetBanLocalFile(object):
 		"""Determine if an IP has had enough hits to ban it."""
 		n = await self.r.incr(ip)
 		await self.r.expire(ip, self.cfg.get_ip_timeout())
+		self.__logger.debug(f"Login failure {n:d} for {ip:s}.")
 		return n >= self.cfg.get_ip_limit()
 
 
@@ -76,7 +84,9 @@ class NetBanLocalEventHandler(pyinotify.ProcessEvent):
 	"""
 	def __init__(self, nblf):
 		super(NetBanLocalEventHandler, self).__init__()
+		self.__logger = logging.getLogger('netban.localeventhandler')
 		self.nblf = nblf
 
 	async def process_default(self, event):
+		self.__logger.debug("Local file event triggered.")
 		await self.nblf.processUpdate()
