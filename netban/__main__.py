@@ -11,7 +11,8 @@ parser.add_argument('config_file', help="Config file to read. Default: config.in
 
 async def main(args):
 	# Set up logging
-	logger = logging.getLogger('netban.main')
+	logger = logging.getLogger('netban')
+	logger.setLevel(logging.DEBUG)
 	handlr = logging.StreamHandler()
 	frmttr = logging.Formatter('%(asctime)s : %(name)s[%(process)d] : %(levelname)s :: %(message)s')
 	if sys.stdout.isatty():
