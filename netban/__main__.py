@@ -24,12 +24,15 @@ async def main(args):
 	# Set up main objects
 	config = NetBanConfig(args.config_file)
 	manager = NetBanManager(config)
-	local = NetBanLocalFile(config, manager)
+	await manager.setup()
+	local = await NetBanLocalFile.create(config, manager)
 
 	# Run
-	loop = asyncio.get_event_loop()
-	loop.run_forever()
+	#loop = asyncio.get_event_loop()
+	#loop.wait()
 
 if __name__ == '__main__':
 	args = parser.parse_args()
-	asyncio.run(main(args))
+	loop = asyncio.get_event_loop()
+	loop.create_task(main(args))
+	loop.run_forever()
