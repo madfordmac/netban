@@ -14,21 +14,26 @@ class NetBanLocalFile(object):
 		self.__logger = logging.getLogger('netban.localfile')
 		self.cfg = cfg
 		self.ban_manager = ban_manager
-		self.wm = pyinotify.WatchManager()
-		self.mask = pyinotify.IN_CREATE | pyinotify.IN_MODIFY
 		self.fail_re = re.compile(r'Failed password for( invalid user)? \w+ from (?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
 		self.last_offset = -1
-		self.notifier = pyinotify.AsyncNotifier(self.wm, NetBanLocalEventHandler(self))
-		self.file_to_watch = cfg.get_local_file()
-		self.last_offset = os.stat(self.file_to_watch).st_size
-		self.wdd = self.wm.add_watch(self.file_to_watch, self.mask, rec=False)
-		self.__logger.info("Created new async iNotifier to watch <%s>." % self.file_to_watch)
+
+	@classmethod
+	async def create(cls, cfg, ban_manager):
+		"""Factory method to create a running instance, since we need to await things."""
+		l = NetBanLocalFile(cfg, ban_manager)
+		l.wm = pyinotify.WatchManager()
+		l.mask = pyinotify.IN_CREATE | pyinotify.IN_MODIFY
+		l.notifier = pyinotify.AsyncNotifier(l.wm, NetBanLocalEventHandler(l))
+		l.file_to_watch = cfg.get_local_file()
+		l.last_offset = os.stat(l.file_to_watch).st_size
+		l.wdd = l.wm.add_watch(l.file_to_watch, l.mask, rec=False)
+		l.__logger.info("Created new async iNotifier to watch <%s>." % l.file_to_watch)
 		redis_db_num = cfg.get_redis_db()
-		self.r = aioredis.create_redis('redis://localhost/%d' % redis_db_num) # This returns a coroutine. Needs to be awaited instead.
-		self.r.config_set('notify-keyspace-events', 'Ex')
-		self.__logger.info("Created new connection to redis database %d." % redis_db_num)
-		asyncio.ensure_future(self.processExpiry())
-		self.__logger.info("Created future to handle IP ban expiry.")
+		l.r = await aioredis.create_redis('redis://localhost/%d' % redis_db_num) # https://stackoverflow.com/questions/33128325/how-to-set-class-attribute-with-await-in-init
+		await l.r.config_set('notify-keyspace-events', 'Ex')
+		l.__logger.info("Created new connection to redis database %d." % redis_db_num)
+		asyncio.ensure_future(l.processExpiry())
+		l.__logger.info("Created future to handle IP ban expiry.")
 
 	async def processExpiry(self):
 		"""Subscribe to redis keyspace expiry events to remove the IP."""
