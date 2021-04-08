@@ -23,7 +23,7 @@ class NetBanLocalFile(object):
 		l = NetBanLocalFile(cfg, ban_manager)
 		l.wm = pyinotify.WatchManager()
 		l.mask = pyinotify.IN_CREATE | pyinotify.IN_MODIFY
-		l.notifier = pyinotify.AsyncNotifier(l.wm, NetBanLocalEventHandler(l))
+		l.notifier = pyinotify.AsyncioNotifier(l.wm, asyncio.get_event_loop(), callback=l.callback)
 		l.file_to_watch = cfg.get_local_file()
 		l.last_offset = os.stat(l.file_to_watch).st_size
 		l.wdd = l.wm.add_watch(l.file_to_watch, l.mask, rec=False)
@@ -35,6 +35,9 @@ class NetBanLocalFile(object):
 		asyncio.ensure_future(l.processExpiry())
 		l.__logger.info("Created future to handle IP ban expiry.")
 
+	def callback(self, notifier):
+		asyncio.get_event_loop().create_task(self.processUpdate())
+
 	async def processExpiry(self):
 		"""Subscribe to redis keyspace expiry events to remove the IP."""
 		res = await self.r.subscribe('__keyevent@%d__:expired' % self.cfg.get_redis_db())
@@ -43,8 +46,9 @@ class NetBanLocalFile(object):
 			await self.ban_manager.unban(chan.get())
 
 	async def processUpdate(self):
-		"""Called by NetBanLocalEventHandler when there is a new event on the
+		"""Scheduled by callback when there is a new event on the
 		watched file to process the new lines."""
+		self.__logger.debug("New invocation of processUpdate().")
 		size = os.stat(self.file_to_watch).st_size
 		if size == self.last_offset:
 			self.__logger.debug("New file size equal to last offset; nothing to do.")
@@ -76,17 +80,3 @@ class NetBanLocalFile(object):
 		await self.r.expire(ip, self.cfg.get_ip_timeout())
 		self.__logger.debug(f"Login failure {n:d} for {ip:s}.")
 		return n >= self.cfg.get_ip_limit()
-
-
-class NetBanLocalEventHandler(pyinotify.ProcessEvent):
-	"""Event Handler for file updates. Since we do te same thing for all events,
-	implement the default method.
-	"""
-	def __init__(self, nblf):
-		super(NetBanLocalEventHandler, self).__init__()
-		self.__logger = logging.getLogger('netban.localeventhandler')
-		self.nblf = nblf
-
-	async def process_default(self, event):
-		self.__logger.debug("Local file event triggered.")
-		await self.nblf.processUpdate()
