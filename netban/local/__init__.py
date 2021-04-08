@@ -28,10 +28,10 @@ class NetBanLocalFile(object):
 		l.last_offset = os.stat(l.file_to_watch).st_size
 		l.wdd = l.wm.add_watch(l.file_to_watch, l.mask, rec=False)
 		l.__logger.info("Created new async iNotifier to watch <%s>." % l.file_to_watch)
-		redis_db_num = cfg.get_redis_db()
-		l.r = await aioredis.create_redis('redis://localhost/%d' % redis_db_num) # https://stackoverflow.com/questions/33128325/how-to-set-class-attribute-with-await-in-init
+		l.redis_db_num = cfg.get_redis_db()
+		l.r = await aioredis.create_redis('redis://localhost/%d' % l.redis_db_num) # https://stackoverflow.com/questions/33128325/how-to-set-class-attribute-with-await-in-init
 		await l.r.config_set('notify-keyspace-events', 'Ex')
-		l.__logger.info("Created new connection to redis database %d." % redis_db_num)
+		l.__logger.info("Created new connection to redis database %d." % l.redis_db_num)
 		asyncio.ensure_future(l.processExpiry())
 		l.__logger.info("Created future to handle IP ban expiry.")
 
@@ -40,9 +40,13 @@ class NetBanLocalFile(object):
 
 	async def processExpiry(self):
 		"""Subscribe to redis keyspace expiry events to remove the IP."""
-		res = await self.r.subscribe('__keyevent@%d__:expired' % self.cfg.get_redis_db())
+		# Connections handling a subscription can't do other work.
+		r_sub = await aioredis.create_redis('redis://localhost/%d' % self.redis_db_num)
+		self.__logger.debug("Created new redis connection to handle expiry subscription.")
+		res = await r_sub.subscribe('__keyevent@%d__:expired' % self.redis_db_num)
 		chan = res[0]
 		while await chan.wait_message():
+			self.__logger.debug("Received new expiry notification.")
 			await self.ban_manager.unban(chan.get())
 
 	async def processUpdate(self):
