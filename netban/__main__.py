@@ -4,6 +4,7 @@ from .local import NetBanLocalFile
 import asyncio
 import argparse
 import logging
+from pprint import pprint
 import sys, os
 
 parser = argparse.ArgumentParser(description="Ban IPs trying to brute force logins. Watch local auth file and aggregate nets via Elasticsearch.")
@@ -27,6 +28,9 @@ async def main(args):
 	manager = NetBanManager(config)
 	await manager.setup()
 	local = await NetBanLocalFile.create(config, manager)
+
+	await asyncio.sleep(5)
+	pprint(asyncio.all_tasks())
 
 	# Run
 	#loop = asyncio.get_event_loop()
