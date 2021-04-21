@@ -34,6 +34,7 @@ class NetBanLocalFile(object):
 		l.__logger.info("Created new connection to redis database %d." % l.redis_db_num)
 		asyncio.ensure_future(l.processExpiry())
 		l.__logger.info("Created future to handle IP ban expiry.")
+		return l
 
 	def callback(self, notifier):
 		asyncio.get_event_loop().create_task(self.processUpdate())
