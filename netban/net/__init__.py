@@ -6,45 +6,6 @@ import logging
 
 class NetBanNet(object):
 	"""Use logs aggregated in an ELK stack to ban nets with poor policing."""
-	
-	# This is the json structure for the Elasticsearch query
-	AS_QUERY = {
-		"size": 0,
-		"query": {
-			"bool": {
-				"filter": [
-					{
-						"term": {
-							"ssh_action": "Failed"
-						}
-					},
-					{
-						"range": {
-							"@timestamp": {
-								"gte": "now-7d",
-								"lte": "now"
-							}
-						}
-					}
-				]
-			}
-		},
-		"aggs": {
-			"as": {
-				"terms": {
-					"field": "asn.asn",
-					"size": 10
-				},
-				"aggs": {
-					"n_ips": {
-						"cardinality": {
-							"field": "asn.ip"
-						}
-					}
-				}
-			}
-		}
-	}
 
 	def __init__(self, cfg, ban_manager):
 		super(NetBanNet, self).__init__()
@@ -52,6 +13,7 @@ class NetBanNet(object):
 		self.cfg = cfg
 		self.ban_manager = ban_manager
 		self.ban_set = set()
+		self.query = self.build_query()
 
 	@classmethod
 	async def create(cls, cfg, ban_manager):
@@ -60,8 +22,47 @@ class NetBanNet(object):
 		await n.updateBanList()
 		return n
 
+	def buildQuery(self):
+		return {
+			"size": 0,
+			"query": {
+				"bool": {
+					"filter": [
+						{
+							"term": {
+								self.cfg.get_net_filter_field(): self.cfg.get_net_filter_term()
+							}
+						},
+						{
+							"range": {
+								"@timestamp": {
+									"gte": "now-%s" % self.cfg.get_net_query_distance(),
+									"lte": "now"
+								}
+							}
+						}
+					]
+				}
+			},
+			"aggs": {
+				"as": {
+					"terms": {
+						"field": self.cfg.get_net_agg_field(),
+						"size": self.cfg.get_net_limit()
+					},
+					"aggs": {
+						"n_ips": {
+							"cardinality": {
+								"field": self.cfg.get_net_count_field()
+							}
+						}
+					}
+				}
+			}
+		}
+
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
 		async with aiohttp.ClientSession() as session:
-			async with session.post(self.query_url, json=self.AS_QUERY) as result:
+			async with session.post(self.query_url, json=self.query) as result:
 				pass

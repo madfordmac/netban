@@ -34,6 +34,30 @@ class NetBanConfig(object):
 		"""Convenience function for getting the location to insert rules in iptables."""
 		return self.cfg['general'].getint('rulenum')
 
+	def get_net_query_distance(self):
+		"""Convenience function for getting the timespan for the net query."""
+		return self.cfg['net'].get('distance')
+
+	def get_net_agg_field(self):
+		"""Convenience function for getting the field to aggregate across."""
+		return self.cfg['net'].get('aggregate')
+
+	def get_net_count_field(self):
+		"""Convenience function for getting the field to count (cardinality)."""
+		return self.cfg['net'].get('cardinality')
+
+	def get_net_limit(self):
+		"""Convenience function for getting the aggregation size limit."""
+		return self.cfg['net'].getint('limit')
+
+	def get_net_filter_field(self):
+		"""Convenience function for getting the field to filter on."""
+		return self.cfg['net'].get('filter-field')
+
+	def get_net_filter_term(self):
+		"""Convenience function for getting the term to filter on."""
+		return self.cfg['net'].get('filter-term')
+
 class NetBanManager(object):
 	"""Interface with iptables/ipset to manage bans"""
 	def __init__(self, config):
