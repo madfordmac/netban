@@ -13,7 +13,10 @@ class NetBanNet(object):
 		self.cfg = cfg
 		self.ban_manager = ban_manager
 		self.ban_set = set()
+		self.query_uri = self.cfg.get_elastic_uri()
+		self.__logger.debug("Will query Elasticsearch at <%s>." % self.query_uri)
 		self.query = self.build_query()
+		self.__logger.debug("Built Elasticsearch query: %r" % self.query)
 
 	@classmethod
 	async def create(cls, cfg, ban_manager):
@@ -63,6 +66,8 @@ class NetBanNet(object):
 
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
+		result = {}
 		async with aiohttp.ClientSession() as session:
-			async with session.post(self.query_url, json=self.query) as result:
-				pass
+			async with session.post(self.query_uri, json=self.query) as response:
+				assert response.status == 200, "Received %(status)d error response from Elastic: %(body)s" % {'status': response.status, 'body': response.text()}
+				result = response.json()
