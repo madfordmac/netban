@@ -62,6 +62,10 @@ class NetBanConfig(object):
 		"""Convenience function for getting the Elasticsearch URI."""
 		return self.cfg['net'].get('elastic-uri')
 
+	def get_net_buckets(self):
+		"""Convenience function for getting the number of aggregation buckets."""
+		return self.cfg['net'].get('buckets')
+
 class NetBanManager(object):
 	"""Interface with iptables/ipset to manage bans"""
 	def __init__(self, config):
