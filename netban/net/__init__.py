@@ -103,5 +103,9 @@ class NetBanNet(object):
 			await self.ban_manager.netunban(c)
 		for c in cidr_to_add:
 			await self.ban_manager.netban(c)
+		asyncio.get_running_loop().create_task(self.updateLater())
 
-
+	async def updateLater(self):
+		"""Wait for the configured interval and update the list again."""
+		await asyncio.sleep(3600)
+		await self.updateBanList()
