@@ -99,6 +99,9 @@ class NetBanNet(object):
 		cidr_to_add = new_bans - self.ban_set
 		self.__logger('Need to remove %d nets from ban set: %r' % (len(cidr_to_drop), cidr_to_drop))
 		self.__logger('Need to add %d nets to ban set: %r' % (len(cidr_to_add), cidr_to_add))
-		
+		for c in cidr_to_drop:
+			await self.ban_manager.netunban(c)
+		for c in cidr_to_add:
+			await self.ban_manager.netban(c)
 
 
