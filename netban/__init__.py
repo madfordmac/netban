@@ -87,11 +87,11 @@ class NetBanManager(object):
 		self.__logger.debug("Created netbannet set.")
 		# Add sets to iptables 
 		insert_at = self.cfg.get_rule_number()
-		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT',f'{insert_at:d}','-m','set','--match-set','netbanlocal','src','-j','DROP')
+		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbanlocal','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbanlocal rule failed."
 		self.__logger.debug("Added netbanlocal rule.")
-		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT',f'{insert_at:d}','-m','set','--match-set','netbannet','src','-j','DROP')
+		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbannet','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbannet rule failed."
 		self.__logger.debug("Added netbannet rule.")
