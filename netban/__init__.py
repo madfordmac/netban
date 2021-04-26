@@ -3,6 +3,7 @@
 import configparser
 import logging
 import asyncio
+import os
 
 class NetBanConfig(object):
 	"""Loads the config from file"""
@@ -77,7 +78,7 @@ class NetBanManager(object):
 	async def setup(self):
 		"""Get the sets created and inserted in iptables"""
 		# Find an ipset command to use.
-		self.ipset = which_ipset()
+		self.ipset = self.which_ipset()
 		self.__logger.debug("Using ipset from %s" % self.ipset)
 		# Create sets
 		p = await asyncio.create_subprocess_exec(self.ipset,'create','netbanlocal','hash:ip')
