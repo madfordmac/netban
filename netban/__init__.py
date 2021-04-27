@@ -77,9 +77,11 @@ class NetBanManager(object):
 
 	async def setup(self):
 		"""Get the sets created and inserted in iptables"""
-		# Find an ipset command to use.
-		self.ipset = self.which_ipset()
+		# Find external executables to use.
+		self.ipset = self.whichIpset()
 		self.__logger.debug("Using ipset from %s" % self.ipset)
+		self.iptables = self.whichIptabes()
+		self.__logger.debug("Using iptables from %s" % self.iptables)
 		# Create sets
 		p = await asyncio.create_subprocess_exec(self.ipset,'create','netbanlocal','hash:ip')
 		r = await p.wait()
@@ -91,23 +93,32 @@ class NetBanManager(object):
 		self.__logger.debug("Created netbannet set.")
 		# Add sets to iptables 
 		insert_at = self.cfg.get_rule_number()
-		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbanlocal','src','-j','DROP')
+		p = await asyncio.create_subprocess_exec(self.iptables,'-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbanlocal','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbanlocal rule failed."
 		self.__logger.debug("Added netbanlocal rule.")
-		p = await asyncio.create_subprocess_exec('/usr/sbin/iptables','-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbannet','src','-j','DROP')
+		p = await asyncio.create_subprocess_exec(self.iptables,'-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbannet','src','-j','DROP')
 		r = await p.wait()
 		assert r == 0, "Inserting netbannet rule failed."
 		self.__logger.debug("Added netbannet rule.")
 
 		self.initialized = True
 
-	def which_ipset(self):
+	@classmethod
+	def whichIpset(cls):
 		"""Find an executable version of ipset."""
 		for ipset in ('/usr/sbin/ipset', '/sbin/ipset'):
 			if os.path.exists(ipset) and os.access(ipset, os.X_OK):
 				return ipset
 		raise EnvironmentError('No executable `ipset` command found.')
+
+	@classmethod
+	def whichIptabes(cls):
+		"""Find an executable version of iptables."""
+		for iptables in ('/usr/sbin/iptables', '/sbin/iptables'):
+			if os.path.exists(iptables) and os.access(iptables, os.X_OK):
+				return iptables
+		raise EnvironmentError('No executable `iptables` command found.')
 
 	async def ban(self, ip):
 		"""Add an IP address to the ban set."""
