@@ -1,0 +1,38 @@
+POST /syslog-*/_search
+{
+  "size": 0, 
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "ssh_action": "Failed"
+          }
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "now-7d",
+              "lte": "now"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "as": {
+      "terms": {
+        "field": "asn.asn",
+        "size": 10
+      },
+      "aggs": {
+        "n_ips": {
+          "cardinality": {
+            "field": "asn.ip"
+          }
+        }
+      }
+    }
+  }
+}
