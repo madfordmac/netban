@@ -63,7 +63,7 @@ class NetBanLocalFile(object):
 		chan = res[0]
 		while await chan.wait_message():
 			self.__logger.debug("Received new expiry notification.")
-			await self.ban_manager.unban(chan.get())
+			await self.ban_manager.unban(await chan.get())
 
 	async def processUpdate(self):
 		"""Scheduled by iNotify WatchManager when there is a modify event on the
