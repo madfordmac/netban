@@ -19,6 +19,8 @@ class NetBanNet(object):
 		self.MAX_ES_RETRY = 3
 		self.ban_set = set()
 		self.limit = self.cfg.get_net_limit()
+		self.interval = self.cfg.get_net_interval()
+		self.retry_interval = self.cfg.get_net_retry_interval()
 		self.es_host = self.cfg.get_elastic_host()
 		self.es_index = self.cfg.get_elastic_index()
 		self.__logger.debug("Will connect to Elasticsearch at <%s> and query the «%s» index." % (self.es_host, self.es_index))
@@ -104,7 +106,7 @@ class NetBanNet(object):
 				await asyncio.sleep(30)
 		else: # Only executed if we don't break out of loop.
 			self.__logger.error("Failed to retrieve networks from Elastic after %d tries." % self.MAX_ES_RETRY)
-			asyncio.get_running_loop().create_task(self.updateLater(600))
+			asyncio.get_running_loop().create_task(self.updateLater(self.retry_interval))
 			return
 		for bucket in result['aggregations']['as']['buckets']:
 			if bucket['n_ips']['value'] > self.limit:
@@ -125,8 +127,11 @@ class NetBanNet(object):
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
 
-	async def updateLater(self, interval=3600):
+	async def updateLater(self, interval=-1):
 		"""Wait for the configured interval and update the list again."""
+		# Check if we should take the default value. Don't use variables in function definition because it has unexpected side effects.
+		if interval == -1:
+			interval = self.interval
 		self.__logger.debug("Next banned network update in %d minutes." % int(interval / 60))
 		await asyncio.sleep(interval)
 		await self.updateBanList()

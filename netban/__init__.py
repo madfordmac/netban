@@ -72,6 +72,14 @@ class NetBanConfig(object):
 		"""Convenience function for getting the number of aggregation buckets."""
 		return self.cfg['net'].get('buckets')
 
+	def get_net_interval(self):
+		"""Convenience function for getting the refresh interval for the net query."""
+		return self.cfg['net'].getint('interval')
+
+	def get_net_retry_interval(self):
+		"""Convenience function for getting the Elastic retry interval."""
+		return self.cfg['net'].getint('retry-interval')
+
 class NetBanManager(object):
 	"""Interface with iptables/ipset to manage bans"""
 	def __init__(self, config):
