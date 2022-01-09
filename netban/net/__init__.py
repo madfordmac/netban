@@ -121,6 +121,7 @@ class NetBanNet(object):
 			await self.ban_manager.netunban(c)
 		for c in cidr_to_add:
 			await self.ban_manager.netban(c)
+		self.ban_set = new_bans
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
 
