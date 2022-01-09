@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import NetBanConfig, NetBanManager
 from .local import NetBanLocalFile
+from .net import NetBanNet
 import asyncio
 import argparse
 import logging
@@ -19,7 +20,7 @@ async def main(args):
 	if sys.stdout.isatty():
 		handlr.setLevel(logging.DEBUG)
 	else:
-		handlr.setLevel(logging.ERROR)
+		handlr.setLevel(logging.INFO)
 	handlr.setFormatter(frmttr)
 	logger.addHandler(handlr)
 
@@ -28,6 +29,7 @@ async def main(args):
 	manager = NetBanManager(config)
 	await manager.setup()
 	local = await NetBanLocalFile.create(config, manager)
+	net = await NetBanNet.create(config, manager)
 
 	await asyncio.sleep(5)
 	pprint(asyncio.all_tasks())

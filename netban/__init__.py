@@ -59,9 +59,14 @@ class NetBanConfig(object):
 		"""Convenience function for getting the term to filter on."""
 		return self.cfg['net'].get('filter-term')
 
-	def get_elastic_uri(self):
-		"""Convenience function for getting the Elasticsearch URI."""
-		return self.cfg['net'].get('elastic-uri')
+	def get_elastic_host(self):
+		"""Convenience function for getting the Elasticsearch host."""
+		# Starting this as a list so it's easier to extend for multiple hosts later.
+		return [self.cfg['net'].get('elastic-host')]
+
+	def get_elastic_index(self):
+		"""Convenience function for getting the Elasticsearch index pattern."""
+		return self.cfg['net'].get('elastic-index')
 
 	def get_net_buckets(self):
 		"""Convenience function for getting the number of aggregation buckets."""
