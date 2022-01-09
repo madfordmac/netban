@@ -1,3 +1,4 @@
-aioredis
+aioredis==1.2.0
+pyinotify
 ipwhois
 elasticsearch7[async]
