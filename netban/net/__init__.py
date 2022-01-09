@@ -112,7 +112,7 @@ class NetBanNet(object):
 				topip = bucket['top_ip']['hits']['hits'][0]['_source']['asn']['ip']
 				asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
 				self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
-				new_bans.update(set([n['cidr'] for n in asnets['nets']]))
+				new_bans.update(set([n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') >= 0]))
 		cidr_to_drop = self.ban_set - new_bans
 		cidr_to_add = new_bans - self.ban_set
 		self.__logger.debug('Need to remove %d nets from ban set: %r' % (len(cidr_to_drop), cidr_to_drop))
