@@ -16,6 +16,7 @@ class NetBanLocalFile(object):
 			self.nblf = nblf
 			self.__logger = logging.getLogger('netban.localevth')
 			self.loop = asyncio.get_running_loop()
+			self.__logger.info("Created event handler for iNotify events.")
 
 		def process_IN_CREATE(self, event):
 			if event.pathname == self.nblf.file_to_watch:
@@ -70,6 +71,7 @@ class NetBanLocalFile(object):
 		self.__logger.debug("New invocation of processUpdate().")
 		lines = []
 		async with self.update_lock:
+			self.__logger.debug("Acquired file reading lock.")
 			size = os.stat(self.file_to_watch).st_size
 			if size == self.last_offset:
 				self.__logger.debug("New file size equal to last offset; nothing to do.")
@@ -84,6 +86,7 @@ class NetBanLocalFile(object):
 				self.__logger.debug("Read %d new lines." % len(lines))
 				self.last_offset = logfile.tell()
 				self.__logger.debug("Offset updated to %d." % self.last_offset)
+		self.__logger.debug("Released file reading lock.")
 		for line in lines:
 			m = self.fail_re.search(line)
 			if m:
