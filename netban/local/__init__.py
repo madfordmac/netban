@@ -97,7 +97,6 @@ class NetBanLocalFile(object):
 	async def processReset(self):
 		"""Scheduled by iNotify WatchManager when there is a create event on the
 		watched file to reset the internal state."""
-		raise NotImplementedError("Finish writing processReset!")
 		self.__logger.debug("New invocation of processReset().")
 		async with self.update_lock:
 			self.size = 0
