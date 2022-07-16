@@ -4,6 +4,7 @@ import configparser
 import logging
 import asyncio
 import os
+from subprocess import PIPE
 
 class NetBanConfig(object):
 	"""Loads the config from file"""
@@ -144,6 +145,20 @@ class NetBanManager(object):
 	async def unban(self, ip):
 		"""Remove an IP address from the ban set."""
 		self.__logger.debug("Received request to unban ip %s." % ip)
+		# First, see if the IP is in the set.
+		self.__logger.debug("Finding netbanlocal set membership.")
+		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbanlocal', stdout=PIPE)
+		(stdout, stderr) = await p.communicate()
+		assert p.returncode == 0, "Error retrieving members of netbanlocal set."
+		for line in stdout.decode('utf-8').split('\n'):
+			if line == ip:
+				self.__logger.debug("Found %s in set; will remove.")
+				break
+		else:
+			# This will execute if the IP is not found (no break).
+			self.__logger.warning("%s not in netbanlocal set." % ip)
+			return
+		# Remove from the set.
 		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbanlocal',ip)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbanlocal set failed." % ip
