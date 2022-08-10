@@ -152,7 +152,7 @@ class NetBanManager(object):
 		assert p.returncode == 0, "Error retrieving members of netbanlocal set."
 		for line in stdout.decode('utf-8').split('\n'):
 			if line == ip:
-				self.__logger.debug("Found %s in set; will remove.")
+				self.__logger.debug("Found %s in set; will remove." % ip)
 				break
 		else:
 			# This will execute if the IP is not found (no break).
