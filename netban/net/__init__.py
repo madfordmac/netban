@@ -17,7 +17,7 @@ class NetBanNet(object):
 		self.cfg = cfg
 		self.ban_manager = ban_manager
 		self.MAX_ES_RETRY = 3
-		self.ban_set = set()
+		self.banned_as = {}
 		self.limit = self.cfg.get_net_limit()
 		self.interval = self.cfg.get_net_interval()
 		self.retry_interval = self.cfg.get_net_retry_interval()
@@ -93,7 +93,7 @@ class NetBanNet(object):
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
 		self.__logger.debug("Updating banned networks…")
-		new_bans = set()
+		new_as = {}
 		tries = 0
 		result = {}
 		while tries < self.MAX_ES_RETRY:
@@ -112,18 +112,26 @@ class NetBanNet(object):
 			if bucket['n_ips']['value'] > self.limit:
 				asn = int(bucket['key'])
 				topip = bucket['top_ip']['hits']['hits'][0]['_source']['asn']['ip']
-				asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
-				self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
-				new_bans.update(set([n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]))
-		cidr_to_drop = self.ban_set - new_bans
-		cidr_to_add = new_bans - self.ban_set
-		self.__logger.debug('Need to remove %d nets from ban set: %r' % (len(cidr_to_drop), cidr_to_drop))
-		self.__logger.debug('Need to add %d nets to ban set: %r' % (len(cidr_to_add), cidr_to_add))
-		for c in cidr_to_drop:
-			await self.ban_manager.netunban(c)
-		for c in cidr_to_add:
-			await self.ban_manager.netban(c)
-		self.ban_set = new_bans
+				new_as[asn] = topip
+		old_as_set = set(self.banned_as.keys())
+		new_as_set = set(new_as.keys())
+		as_to_drop = old_as_set - new_as_set
+		as_to_add = new_as_set - old_as_set
+		self.__logger.debug('Need to remove %d AS from ban set: %r' % (len(as_to_drop), as_to_drop))
+		for asn in as_to_drop:
+			self.__logger.debug('Removing %d nets for AS%d' % (len(self.banned_as[asn]), asn))
+			for c in self.banned_as[asn]:
+				await self.ban_manager.netunban(c)
+			del(self.banned_as[asn])
+		self.__logger.debug('Need to add %d AS to ban set: %r' % (len(as_to_add), as_to_add))
+		for asn in as_to_add:
+			topip = new_as[asn]
+			asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
+			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
+			bans = [n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]
+			for c in bans:
+				await self.ban_manager.netban(c)
+			self.banned_as[asn] = bans
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
 
