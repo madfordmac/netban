@@ -4,6 +4,7 @@ from ipwhois.net import Net as ASNet
 from ipwhois.asn import ASNOrigin
 from elasticsearch7 import AsyncElasticsearch
 from elasticsearch7.exceptions import ConnectionTimeout as ESConnectionTimeout
+from netaddr import IPSet, IPNetwork
 import aiohttp
 import asyncio
 import logging
@@ -18,6 +19,7 @@ class NetBanNet(object):
 		self.ban_manager = ban_manager
 		self.MAX_ES_RETRY = 3
 		self.banned_as = {}
+		self.ban_space = IPSet()
 		self.limit = self.cfg.get_net_limit()
 		self.interval = self.cfg.get_net_interval()
 		self.retry_interval = self.cfg.get_net_retry_interval()
@@ -118,20 +120,25 @@ class NetBanNet(object):
 		as_to_drop = old_as_set - new_as_set
 		as_to_add = new_as_set - old_as_set
 		self.__logger.debug('Need to remove %d AS from ban set: %r' % (len(as_to_drop), as_to_drop))
+		nets_to_drop = IPSet()
 		for asn in as_to_drop:
 			self.__logger.debug('Removing %d nets for AS%d' % (len(self.banned_as[asn]), asn))
-			for c in self.banned_as[asn]:
+			nets_to_drop.update([IPNetwork(n) for n in self.banned_as[asn]])
+			for c in self.ban_space.intersection(self.banned_as[asn]).iter_cidrs():
 				await self.ban_manager.netunban(c)
 			del(self.banned_as[asn])
+			self.ban_space = self.ban_space - nets_to_drop
 		self.__logger.debug('Need to add %d AS to ban set: %r' % (len(as_to_add), as_to_add))
 		for asn in as_to_add:
 			topip = new_as[asn]
 			asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
 			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
 			bans = [n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]
-			for c in bans:
+			nets_to_ban = IPSet([IPNetwork(n) for n in bans])
+			for c in (nets_to_ban - self.ban_space).iter_cidrs():
 				await self.ban_manager.netban(c)
 			self.banned_as[asn] = bans
+			self.ban_space.update(nets_to_ban)
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
 
