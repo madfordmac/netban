@@ -5,6 +5,7 @@ from .net import NetBanNet
 import asyncio
 import argparse
 import logging
+from logging.handlers import SysLogHandler
 from pprint import pprint
 import sys, os
 
@@ -15,14 +16,17 @@ async def main(args):
 	# Set up logging
 	logger = logging.getLogger('netban')
 	logger.setLevel(logging.DEBUG)
-	handlr = logging.StreamHandler()
 	frmttr = logging.Formatter('%(asctime)s : %(name)s[%(process)d] : %(levelname)s :: %(message)s')
+	syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_SECURITY)
 	if sys.stdout.isatty():
+		handlr = logging.StreamHandler()
 		handlr.setLevel(logging.DEBUG)
+		handlr.setFormatter(frmttr)
+		logger.addHandler(handlr)
+		syslog.setLevel(logging.DEBUG)
 	else:
-		handlr.setLevel(logging.INFO)
-	handlr.setFormatter(frmttr)
-	logger.addHandler(handlr)
+		syslog.setLevel(logging.INFO)
+	logger.addHandler(syslog)
 
 	# Set up main objects
 	config = NetBanConfig(args.config_file)
