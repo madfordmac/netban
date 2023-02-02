@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from ipwhois.net import Net as ASNet
-from ipwhois.asn import ASNOrigin
+from ipwhois.asn import ASNOrigin, ASNOriginLookupError
 from elasticsearch7 import AsyncElasticsearch
 from elasticsearch7.exceptions import ConnectionTimeout as ESConnectionTimeout
 from netaddr import IPSet, IPNetwork
@@ -131,7 +131,12 @@ class NetBanNet(object):
 		self.__logger.debug('Need to add %d AS to ban set: %r' % (len(as_to_add), as_to_add))
 		for asn in as_to_add:
 			topip = new_as[asn]
-			asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
+			try:
+				asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
+			except ASNOriginLookupError as e:
+				self.__logger.warning('Unable to find nets for AS{asn:d} with base IP {ip:s}.'.format(asn=asn, ip=topip))
+				self.__logger.warning('Message was: {err:s}'.format(err=str(e)))
+				continue
 			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
 			bans = [n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]
 			nets_to_ban = IPSet([IPNetwork(n) for n in bans])
