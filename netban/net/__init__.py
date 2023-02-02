@@ -142,7 +142,7 @@ class NetBanNet(object):
 			nets_to_ban = IPSet([IPNetwork(n) for n in bans])
 			for c in (nets_to_ban - self.ban_space).iter_cidrs():
 				await self.ban_manager.netban(str(c))
-			self.banned_as[asn] = bans
+			self.banned_as[asn] = nets_to_ban
 			self.ban_space.update(nets_to_ban)
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
