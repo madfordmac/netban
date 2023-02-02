@@ -17,7 +17,7 @@ async def main(args):
 	logger = logging.getLogger('netban')
 	logger.setLevel(logging.DEBUG)
 	frmttr = logging.Formatter('%(asctime)s : %(name)s[%(process)d] : %(levelname)s :: %(message)s')
-	syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_SECURITY)
+	syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_LOCAL1)
 	syslog.setFormatter(logging.Formatter('%(name)s[%(process)d]: %(message)s'))
 	if sys.stdout.isatty():
 		handlr = logging.StreamHandler()
