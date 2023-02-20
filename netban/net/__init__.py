@@ -122,8 +122,8 @@ class NetBanNet(object):
 		self.__logger.debug('Need to remove %d AS from ban set: %r' % (len(as_to_drop), as_to_drop))
 		nets_to_drop = IPSet()
 		for asn in as_to_drop:
-			self.__logger.debug('Removing %d nets for AS%d' % (len(self.banned_as[asn]), asn))
-			nets_to_drop.update([IPNetwork(n) for n in self.banned_as[asn]])
+			self.__logger.debug('Removing %d nets for AS%d' % (len(self.banned_as[asn].iter_cidrs()), asn))
+			nets_to_drop.update([n for n in self.banned_as[asn].iter_cidrs()])
 			for c in self.ban_space.intersection(self.banned_as[asn]).iter_cidrs():
 				await self.ban_manager.netunban(str(c))
 			del(self.banned_as[asn])
