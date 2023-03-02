@@ -175,6 +175,20 @@ class NetBanManager(object):
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
 		self.__logger.debug("Received request to unban net %s." % cidr)
+		# First, see if the net is in the set.
+		self.__logger.debug("Finding netbannet set membership.")
+		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbannet', stdout=PIPE)
+		(stdout, stderr) = await p.communicate()
+		assert p.returncode == 0, "Error retrieving members of netbannet set."
+		for line in stdout.decode('utf-8').split('\n'):
+			if line == cidr:
+				self.__logger.debug("Found %s in set; will remove." % cidr)
+				break
+		else:
+			# This will execute if the cidr is not found (no break).
+			self.__logger.warning("%s not in netbannet set." % cidr)
+			return
+		# Remove from the set.
 		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbannet',cidr)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbannet set failed." % cidr
