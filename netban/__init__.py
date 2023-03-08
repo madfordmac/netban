@@ -167,10 +167,13 @@ class NetBanManager(object):
 	async def netban(self, cidr):
 		"""Add a CIDR-notation net to the ban set."""
 		self.__logger.debug("Received request to ban net %s." % cidr)
-		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbannet',cidr)
-		r = await p.wait()
-		assert r == 0, "Adding %s to netbannet set failed." % cidr
-		self.__logger.debug("%s added to netbannet set." % cidr)
+		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbannet',cidr, stderr=PIPE)
+		(stdout, stderr) = await p.communicate()
+		try:
+			assert p.returncode == 0, "Adding %s to netbannet set failed." % cidr
+			self.__logger.debug("%s added to netbannet set." % cidr)
+		except AssertionError as e:
+			self.__logger.error("Error adding %s to set: %s" % (cidr, stderr))
 
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
