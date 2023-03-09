@@ -36,9 +36,6 @@ async def main(args):
 	local = await NetBanLocalFile.create(config, manager)
 	net = await NetBanNet.create(config, manager)
 
-	await asyncio.sleep(5)
-	pprint(asyncio.all_tasks())
-
 	# Run
 	#loop = asyncio.get_event_loop()
 	#loop.wait()
