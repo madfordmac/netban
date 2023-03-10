@@ -5,6 +5,7 @@ from .net import NetBanNet
 import asyncio
 import argparse
 import logging
+from logging.handlers import SysLogHandler
 from pprint import pprint
 import sys, os
 
@@ -15,14 +16,18 @@ async def main(args):
 	# Set up logging
 	logger = logging.getLogger('netban')
 	logger.setLevel(logging.DEBUG)
-	handlr = logging.StreamHandler()
 	frmttr = logging.Formatter('%(asctime)s : %(name)s[%(process)d] : %(levelname)s :: %(message)s')
+	syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_LOCAL1)
+	syslog.setFormatter(logging.Formatter('%(name)s[%(process)d]: %(message)s'))
 	if sys.stdout.isatty():
+		handlr = logging.StreamHandler()
 		handlr.setLevel(logging.DEBUG)
+		handlr.setFormatter(frmttr)
+		logger.addHandler(handlr)
+		syslog.setLevel(logging.DEBUG)
 	else:
-		handlr.setLevel(logging.INFO)
-	handlr.setFormatter(frmttr)
-	logger.addHandler(handlr)
+		syslog.setLevel(logging.INFO)
+	logger.addHandler(syslog)
 
 	# Set up main objects
 	config = NetBanConfig(args.config_file)
@@ -30,9 +35,6 @@ async def main(args):
 	await manager.setup()
 	local = await NetBanLocalFile.create(config, manager)
 	net = await NetBanNet.create(config, manager)
-
-	await asyncio.sleep(5)
-	pprint(asyncio.all_tasks())
 
 	# Run
 	#loop = asyncio.get_event_loop()

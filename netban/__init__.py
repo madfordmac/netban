@@ -4,6 +4,7 @@ import configparser
 import logging
 import asyncio
 import os
+from subprocess import PIPE
 
 class NetBanConfig(object):
 	"""Loads the config from file"""
@@ -72,6 +73,14 @@ class NetBanConfig(object):
 		"""Convenience function for getting the number of aggregation buckets."""
 		return self.cfg['net'].get('buckets')
 
+	def get_net_interval(self):
+		"""Convenience function for getting the refresh interval for the net query."""
+		return self.cfg['net'].getint('interval')
+
+	def get_net_retry_interval(self):
+		"""Convenience function for getting the Elastic retry interval."""
+		return self.cfg['net'].getint('retry-interval')
+
 class NetBanManager(object):
 	"""Interface with iptables/ipset to manage bans"""
 	def __init__(self, config):
@@ -136,6 +145,20 @@ class NetBanManager(object):
 	async def unban(self, ip):
 		"""Remove an IP address from the ban set."""
 		self.__logger.debug("Received request to unban ip %s." % ip)
+		# First, see if the IP is in the set.
+		self.__logger.debug("Finding netbanlocal set membership.")
+		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbanlocal', stdout=PIPE)
+		(stdout, stderr) = await p.communicate()
+		assert p.returncode == 0, "Error retrieving members of netbanlocal set."
+		for line in stdout.decode('utf-8').split('\n'):
+			if line == ip:
+				self.__logger.debug("Found %s in set; will remove." % ip)
+				break
+		else:
+			# This will execute if the IP is not found (no break).
+			self.__logger.warning("%s not in netbanlocal set." % ip)
+			return
+		# Remove from the set.
 		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbanlocal',ip)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbanlocal set failed." % ip
@@ -144,14 +167,31 @@ class NetBanManager(object):
 	async def netban(self, cidr):
 		"""Add a CIDR-notation net to the ban set."""
 		self.__logger.debug("Received request to ban net %s." % cidr)
-		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbannet',cidr)
-		r = await p.wait()
-		assert r == 0, "Adding %s to netbannet set failed." % cidr
-		self.__logger.debug("%s added to netbannet set." % cidr)
+		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbannet',cidr, stderr=PIPE)
+		(stdout, stderr) = await p.communicate()
+		try:
+			assert p.returncode == 0, "Adding %s to netbannet set failed." % cidr
+			self.__logger.debug("%s added to netbannet set." % cidr)
+		except AssertionError as e:
+			self.__logger.error("Error adding %s to set: %s" % (cidr, stderr))
 
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
 		self.__logger.debug("Received request to unban net %s." % cidr)
+		# First, see if the net is in the set.
+		self.__logger.debug("Finding netbannet set membership.")
+		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbannet', stdout=PIPE)
+		(stdout, stderr) = await p.communicate()
+		assert p.returncode == 0, "Error retrieving members of netbannet set."
+		for line in stdout.decode('utf-8').split('\n'):
+			if line == cidr:
+				self.__logger.debug("Found %s in set; will remove." % cidr)
+				break
+		else:
+			# This will execute if the cidr is not found (no break).
+			self.__logger.warning("%s not in netbannet set." % cidr)
+			return
+		# Remove from the set.
 		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbannet',cidr)
 		r = await p.wait()
 		assert r == 0, "Removing %s from netbannet set failed." % cidr

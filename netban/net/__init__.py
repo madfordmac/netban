@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from ipwhois.net import Net as ASNet
-from ipwhois.asn import ASNOrigin
+from ipwhois.asn import ASNOrigin, ASNOriginLookupError
 from elasticsearch7 import AsyncElasticsearch
 from elasticsearch7.exceptions import ConnectionTimeout as ESConnectionTimeout
+from netaddr import IPSet, IPNetwork
 import aiohttp
 import asyncio
 import logging
@@ -17,8 +18,11 @@ class NetBanNet(object):
 		self.cfg = cfg
 		self.ban_manager = ban_manager
 		self.MAX_ES_RETRY = 3
-		self.ban_set = set()
+		self.banned_as = {}
+		self.ban_space = IPSet()
 		self.limit = self.cfg.get_net_limit()
+		self.interval = self.cfg.get_net_interval()
+		self.retry_interval = self.cfg.get_net_retry_interval()
 		self.es_host = self.cfg.get_elastic_host()
 		self.es_index = self.cfg.get_elastic_index()
 		self.__logger.debug("Will connect to Elasticsearch at <%s> and query the «%s» index." % (self.es_host, self.es_index))
@@ -91,7 +95,7 @@ class NetBanNet(object):
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
 		self.__logger.debug("Updating banned networks…")
-		new_bans = set()
+		new_as = {}
 		tries = 0
 		result = {}
 		while tries < self.MAX_ES_RETRY:
@@ -104,29 +108,50 @@ class NetBanNet(object):
 				await asyncio.sleep(30)
 		else: # Only executed if we don't break out of loop.
 			self.__logger.error("Failed to retrieve networks from Elastic after %d tries." % self.MAX_ES_RETRY)
-			asyncio.get_running_loop().create_task(self.updateLater(600))
+			asyncio.get_running_loop().create_task(self.updateLater(self.retry_interval))
 			return
 		for bucket in result['aggregations']['as']['buckets']:
 			if bucket['n_ips']['value'] > self.limit:
 				asn = int(bucket['key'])
 				topip = bucket['top_ip']['hits']['hits'][0]['_source']['asn']['ip']
+				new_as[asn] = topip
+		old_as_set = set(self.banned_as.keys())
+		new_as_set = set(new_as.keys())
+		as_to_drop = old_as_set - new_as_set
+		as_to_add = new_as_set - old_as_set
+		self.__logger.debug('Need to remove %d AS from ban set: %r' % (len(as_to_drop), as_to_drop))
+		nets_to_drop = IPSet()
+		for asn in as_to_drop:
+			self.__logger.debug('Removing %d nets for AS%d' % (len(self.banned_as[asn].iter_cidrs()), asn))
+			nets_to_drop.update([n for n in self.banned_as[asn].iter_cidrs()])
+			for c in self.ban_space.intersection(self.banned_as[asn]).iter_cidrs():
+				await self.ban_manager.netunban(str(c))
+			del(self.banned_as[asn])
+			self.ban_space = self.ban_space - nets_to_drop
+		self.__logger.debug('Need to add %d AS to ban set: %r' % (len(as_to_add), as_to_add))
+		for asn in as_to_add:
+			topip = new_as[asn]
+			try:
 				asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
-				self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
-				new_bans.update(set([n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]))
-		cidr_to_drop = self.ban_set - new_bans
-		cidr_to_add = new_bans - self.ban_set
-		self.__logger.debug('Need to remove %d nets from ban set: %r' % (len(cidr_to_drop), cidr_to_drop))
-		self.__logger.debug('Need to add %d nets to ban set: %r' % (len(cidr_to_add), cidr_to_add))
-		for c in cidr_to_drop:
-			await self.ban_manager.netunban(c)
-		for c in cidr_to_add:
-			await self.ban_manager.netban(c)
-		self.ban_set = new_bans
+			except ASNOriginLookupError as e:
+				self.__logger.warning('Unable to find nets for AS{asn:d} with base IP {ip:s}.'.format(asn=asn, ip=topip))
+				self.__logger.warning('Message was: {err:s}'.format(err=str(e)))
+				continue
+			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
+			bans = [n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]
+			nets_to_ban = IPSet([IPNetwork(n) for n in bans])
+			for c in (nets_to_ban - self.ban_space).iter_cidrs():
+				await self.ban_manager.netban(str(c))
+			self.banned_as[asn] = nets_to_ban
+			self.ban_space.update(nets_to_ban)
 		self.__logger.debug("Completed banned network update.")
 		asyncio.get_running_loop().create_task(self.updateLater())
 
-	async def updateLater(self, interval=3600):
+	async def updateLater(self, interval=-1):
 		"""Wait for the configured interval and update the list again."""
+		# Check if we should take the default value. Don't use variables in function definition because it has unexpected side effects.
+		if interval == -1:
+			interval = self.interval
 		self.__logger.debug("Next banned network update in %d minutes." % int(interval / 60))
 		await asyncio.sleep(interval)
 		await self.updateBanList()
