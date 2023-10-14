@@ -149,11 +149,11 @@ class NetBanManager(object):
 		# This had different logic than single IPs in the iptables/ipset days.
 		# It is the same logic with nftables, but keeping the separate
 		# function in case nftables' successor needs it.
-		self.ban(cidr)
+		await self.ban(cidr)
 
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
 		# This had different logic than single IPs in the iptables/ipset days.
 		# It is the same logic with nftables, but keeping the separate
 		# function in case nftables' successor needs it.
-		self.unban(cidr)
+		await self.unban(cidr)
