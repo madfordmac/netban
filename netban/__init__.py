@@ -119,7 +119,7 @@ class NetBanManager(object):
 		p = await asyncio.create_subprocess_exec(self.nft,'add','element',*set_name,'{',ip,'}')
 		r = await p.wait()
 		assert r == 0, "Adding %s to set failed." % ip
-		self.__logger.debug("%s added to set." % ip)
+		self.__logger.info("%s successfully banned." % ip)
 
 	async def unban(self, ip):
 		"""Remove an IP address from the ban set."""
@@ -142,7 +142,7 @@ class NetBanManager(object):
 		p = await asyncio.create_subprocess_exec(self.nft,'delete','element',*set_name,'{',ip,'}')
 		r = await p.wait()
 		assert r == 0, "Removing %s from set failed." % ip
-		self.__logger.debug("%s removed from set." % ip)
+		self.__logger.info("%s successfully unbanned." % ip)
 
 	async def netban(self, cidr):
 		"""Add a CIDR-notation net to the ban set."""
