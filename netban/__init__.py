@@ -5,6 +5,7 @@ import logging
 import asyncio
 import os
 from subprocess import PIPE
+from shlex import split as shplit
 
 class NetBanConfig(object):
 	"""Loads the config from file"""
@@ -32,9 +33,9 @@ class NetBanConfig(object):
 		"""Convenience method for getting the max failed attempts for a single ip."""
 		return self.cfg['local'].getint('limit')
 
-	def get_rule_number(self):
-		"""Convenience function for getting the location to insert rules in iptables."""
-		return self.cfg['general'].getint('rulenum')
+	def get_set_name(self):
+		"""Convenience function for getting the nftables set name."""
+		return shplit(self.cfg['general'].get('set-name'))
 
 	def get_net_query_distance(self):
 		"""Convenience function for getting the timespan for the net query."""
@@ -92,107 +93,67 @@ class NetBanManager(object):
 	async def setup(self):
 		"""Get the sets created and inserted in iptables"""
 		# Find external executables to use.
-		self.ipset = self.whichIpset()
-		self.__logger.debug("Using ipset from %s" % self.ipset)
-		self.iptables = self.whichIptabes()
-		self.__logger.debug("Using iptables from %s" % self.iptables)
-		# Create sets
-		p = await asyncio.create_subprocess_exec(self.ipset,'create','netbanlocal','hash:ip')
+		self.nft = self.whichNft()
+		self.__logger.debug("Using nft from %s" % self.nft)
+		# Check configured set exists
+		set_name = self.cfg.get_set_name()
+		p = await asyncio.create_subprocess_exec(self.nft,'list','set', *set_name)
 		r = await p.wait()
-		assert r == 0, "Creation of netbanlocal set failed."
-		self.__logger.debug("Created netbanlocal set.")
-		p = await asyncio.create_subprocess_exec(self.ipset,'create','netbannet','hash:net')
-		r = await p.wait()
-		assert r == 0, "Creation of netbannet set failed."
-		self.__logger.debug("Created netbannet set.")
-		# Add sets to iptables 
-		insert_at = self.cfg.get_rule_number()
-		p = await asyncio.create_subprocess_exec(self.iptables,'-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbanlocal','src','-j','DROP')
-		r = await p.wait()
-		assert r == 0, "Inserting netbanlocal rule failed."
-		self.__logger.debug("Added netbanlocal rule.")
-		p = await asyncio.create_subprocess_exec(self.iptables,'-I','INPUT','%d' % insert_at,'-m','set','--match-set','netbannet','src','-j','DROP')
-		r = await p.wait()
-		assert r == 0, "Inserting netbannet rule failed."
-		self.__logger.debug("Added netbannet rule.")
+		assert r == 0, "Failed to list set %s. Does it exist?" % ' '.join(set_name)
+		self.__logger.debug("Confirmed set exists.")
 
 		self.initialized = True
 
 	@classmethod
-	def whichIpset(cls):
-		"""Find an executable version of ipset."""
-		for ipset in ('/usr/sbin/ipset', '/sbin/ipset'):
-			if os.path.exists(ipset) and os.access(ipset, os.X_OK):
-				return ipset
-		raise EnvironmentError('No executable `ipset` command found.')
-
-	@classmethod
-	def whichIptabes(cls):
-		"""Find an executable version of iptables."""
-		for iptables in ('/usr/sbin/iptables', '/sbin/iptables'):
-			if os.path.exists(iptables) and os.access(iptables, os.X_OK):
-				return iptables
-		raise EnvironmentError('No executable `iptables` command found.')
+	def whichNft(cls):
+		"""Find an executable version of nft."""
+		for nft in ('/usr/sbin/nft', '/sbin/nft'):
+			if os.path.exists(nft) and os.access(nft, os.X_OK):
+				return nft
+		raise EnvironmentError('No executable `nft` command found.')
 
 	async def ban(self, ip):
 		"""Add an IP address to the ban set."""
 		self.__logger.debug("Received request to ban ip %s." % ip)
-		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbanlocal',ip)
+		set_name = self.cfg.get_set_name()
+		p = await asyncio.create_subprocess_exec(self.nft,'add','element',*set_name,'{',ip,'}')
 		r = await p.wait()
-		assert r == 0, "Adding %s to netbanlocal set failed." % ip
-		self.__logger.debug("%s added to netbanlocal set." % ip)
+		assert r == 0, "Adding %s to set failed." % ip
+		self.__logger.debug("%s added to set." % ip)
 
 	async def unban(self, ip):
 		"""Remove an IP address from the ban set."""
 		self.__logger.debug("Received request to unban ip %s." % ip)
 		# First, see if the IP is in the set.
-		self.__logger.debug("Finding netbanlocal set membership.")
-		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbanlocal', stdout=PIPE)
+		self.__logger.debug("Finding set membership.")
+		set_name = self.cfg.get_set_name()
+		p = await asyncio.create_subprocess_exec(self.nft,'list','set',*set_name, stdout=PIPE)
 		(stdout, stderr) = await p.communicate()
-		assert p.returncode == 0, "Error retrieving members of netbanlocal set."
+		assert p.returncode == 0, "Error retrieving members of set."
 		for line in stdout.decode('utf-8').split('\n'):
-			if line == ip:
+			if ip in line:
 				self.__logger.debug("Found %s in set; will remove." % ip)
 				break
 		else:
 			# This will execute if the IP is not found (no break).
-			self.__logger.warning("%s not in netbanlocal set." % ip)
+			self.__logger.warning("%s not in set." % ip)
 			return
 		# Remove from the set.
-		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbanlocal',ip)
+		p = await asyncio.create_subprocess_exec(self.nft,'delete','element',*set_name,'{',ip,'}')
 		r = await p.wait()
-		assert r == 0, "Removing %s from netbanlocal set failed." % ip
-		self.__logger.debug("%s removed from netbanlocal set." % ip)
+		assert r == 0, "Removing %s from set failed." % ip
+		self.__logger.debug("%s removed from set." % ip)
 
 	async def netban(self, cidr):
 		"""Add a CIDR-notation net to the ban set."""
-		self.__logger.debug("Received request to ban net %s." % cidr)
-		p = await asyncio.create_subprocess_exec(self.ipset,'add','netbannet',cidr, stderr=PIPE)
-		(stdout, stderr) = await p.communicate()
-		try:
-			assert p.returncode == 0, "Adding %s to netbannet set failed." % cidr
-			self.__logger.debug("%s added to netbannet set." % cidr)
-		except AssertionError as e:
-			self.__logger.error("Error adding %s to set: %s" % (cidr, stderr))
+		# This had different logic than single IPs in the iptables/ipset days.
+		# It is the same logic with nftables, but keeping the separate
+		# function in case nftables' successor needs it.
+		await self.ban(cidr)
 
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
-		self.__logger.debug("Received request to unban net %s." % cidr)
-		# First, see if the net is in the set.
-		self.__logger.debug("Finding netbannet set membership.")
-		p = await asyncio.create_subprocess_exec(self.ipset,'list','netbannet', stdout=PIPE)
-		(stdout, stderr) = await p.communicate()
-		assert p.returncode == 0, "Error retrieving members of netbannet set."
-		for line in stdout.decode('utf-8').split('\n'):
-			if line == cidr:
-				self.__logger.debug("Found %s in set; will remove." % cidr)
-				break
-		else:
-			# This will execute if the cidr is not found (no break).
-			self.__logger.warning("%s not in netbannet set." % cidr)
-			return
-		# Remove from the set.
-		p = await asyncio.create_subprocess_exec(self.ipset,'del','netbannet',cidr)
-		r = await p.wait()
-		assert r == 0, "Removing %s from netbannet set failed." % cidr
-		self.__logger.debug("%s removed from netbannet set." % cidr)
+		# This had different logic than single IPs in the iptables/ipset days.
+		# It is the same logic with nftables, but keeping the separate
+		# function in case nftables' successor needs it.
+		await self.unban(cidr)
