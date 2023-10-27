@@ -94,6 +94,9 @@ class NetBanNet(object):
 
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
+		# Reschedule first for timing's sake and to ensure future execution should we crash out.
+		asyncio.get_running_loop().create_task(self.updateLater())
+		# Collect nets from Elastic
 		self.__logger.debug("Updating banned networks…")
 		new_as = {}
 		tries = 0
@@ -145,7 +148,6 @@ class NetBanNet(object):
 			self.banned_as[asn] = nets_to_ban
 			self.ban_space.update(nets_to_ban)
 		self.__logger.debug("Completed banned network update.")
-		asyncio.get_running_loop().create_task(self.updateLater())
 
 	async def updateLater(self, interval=-1):
 		"""Wait for the configured interval and update the list again."""
