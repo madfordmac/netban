@@ -109,10 +109,24 @@ class NetBanNet(object):
 				self.__logger.warning("Timeout retrieving networks from Elastic, try %d." % tries)
 				tries += 1
 				await asyncio.sleep(30)
+			except Exception as e:
+				self.__logger.error("Unexpected {t:s} error querying Elastic: {e!r}".format(
+					t = type(e).__name__,
+					e = e
+				))
+				raise e
 		else: # Only executed if we don't break out of loop.
 			self.__logger.error("Failed to retrieve networks from Elastic after %d tries." % self.MAX_ES_RETRY)
 			asyncio.get_running_loop().create_task(self.updateLater(self.retry_interval))
 			return
+		# Check it has the form we expect
+		if ('aggregations' not in result) or \
+			('as' not in result['aggregations']) or \
+			('buckets' not in result['aggregations']['as']) or \
+			(type(result['aggregations']['as']['buckets']) != list) or \
+			(len(result['aggregations']['as']['buckets']) < 1):
+			self.__logger.error(f"Result from Elasticsearch did not look like we expect: {result!r}")
+			raise EnvironmentError("Result from Elasticsearch did not look like we expect.")
 		for bucket in result['aggregations']['as']['buckets']:
 			if bucket['n_ips']['value'] > self.limit:
 				asn = int(bucket['key'])
