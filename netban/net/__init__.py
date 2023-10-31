@@ -95,7 +95,8 @@ class NetBanNet(object):
 	async def updateBanList(self):
 		"""Pull new list of banned nets and update the set."""
 		# Reschedule first for timing's sake and to ensure future execution should we crash out.
-		asyncio.get_running_loop().create_task(self.updateLater())
+		# Save reference so we don't get garbage collected.
+		self.next_update_job = asyncio.get_running_loop().create_task(self.updateLater())
 		# Collect nets from Elastic
 		self.__logger.debug("Updating banned networks…")
 		new_as = {}
