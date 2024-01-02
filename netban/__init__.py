@@ -33,9 +33,13 @@ class NetBanConfig(object):
 		"""Convenience method for getting the max failed attempts for a single ip."""
 		return self.cfg['local'].getint('limit')
 
-	def get_set_name(self):
-		"""Convenience function for getting the nftables set name."""
-		return shplit(self.cfg['general'].get('set-name'))
+	def get_local_set_name(self):
+		"""Convenience function for getting the local nftables set name."""
+		return shplit(self.cfg['local'].get('set-name'))
+
+	def get_net_set_name(self):
+		"""Convenience function for getting the net nftables set name."""
+		return shplit(self.cfg['net'].get('set-name'))
 
 	def get_net_query_distance(self):
 		"""Convenience function for getting the timespan for the net query."""
@@ -112,22 +116,20 @@ class NetBanManager(object):
 				return nft
 		raise EnvironmentError('No executable `nft` command found.')
 
-	async def ban(self, ip):
-		"""Add an IP address to the ban set."""
+	async def __ban(self, ip, nftset):
+		"""Do the heavy lifting of banning an ip or cidr."""
 		self.__logger.debug("Received request to ban ip %s." % ip)
-		set_name = self.cfg.get_set_name()
-		p = await asyncio.create_subprocess_exec(self.nft,'add','element',*set_name,'{',ip,'}')
+		p = await asyncio.create_subprocess_exec(self.nft,'add','element',*nftset,'{',ip,'}')
 		r = await p.wait()
 		assert r == 0, "Adding %s to set failed." % ip
 		self.__logger.info("%s successfully banned." % ip)
 
-	async def unban(self, ip):
-		"""Remove an IP address from the ban set."""
+	async def __unban(self, ip, nftset):
+		"""Do the heavy lifting of unbanning an ip or cidr."""
 		self.__logger.debug("Received request to unban ip %s." % ip)
 		# First, see if the IP is in the set.
 		self.__logger.debug("Finding set membership.")
-		set_name = self.cfg.get_set_name()
-		p = await asyncio.create_subprocess_exec(self.nft,'list','set',*set_name, stdout=PIPE)
+		p = await asyncio.create_subprocess_exec(self.nft,'list','set',*nftset, stdout=PIPE)
 		(stdout, stderr) = await p.communicate()
 		assert p.returncode == 0, "Error retrieving members of set."
 		for line in stdout.decode('utf-8').split('\n'):
@@ -143,17 +145,23 @@ class NetBanManager(object):
 		r = await p.wait()
 		assert r == 0, "Removing %s from set failed." % ip
 		self.__logger.info("%s successfully unbanned." % ip)
+	
+	async def ban(self, ip):
+		"""Add a single IP address to the ban set."""
+		localset = self.cfg.get_local_set_name()
+		await self.__ban(ip, localset)
+
+	async def unban(self, ip):
+		"""Unban a single IP address from the ban set."""
+		localset = self.cfg.get_local_set_name()
+		await self.__unban(ip, localset)
 
 	async def netban(self, cidr):
 		"""Add a CIDR-notation net to the ban set."""
-		# This had different logic than single IPs in the iptables/ipset days.
-		# It is the same logic with nftables, but keeping the separate
-		# function in case nftables' successor needs it.
-		await self.ban(cidr)
+		netset = self.cfg.get_net_set_name()
+		await self.__ban(cidr, netset)
 
 	async def netunban(self, cidr):
 		"""Remove a CIDR-notation net from the ban set."""
-		# This had different logic than single IPs in the iptables/ipset days.
-		# It is the same logic with nftables, but keeping the separate
-		# function in case nftables' successor needs it.
-		await self.unban(cidr)
+		netset = self.cfg.get_net_set_name()
+		await self.__unban(cidr, netset)
