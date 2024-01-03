@@ -99,12 +99,12 @@ class NetBanManager(object):
 		# Find external executables to use.
 		self.nft = self.whichNft()
 		self.__logger.debug("Using nft from %s" % self.nft)
-		# Check configured set exists
-		set_name = self.cfg.get_set_name()
-		p = await asyncio.create_subprocess_exec(self.nft,'list','set', *set_name)
-		r = await p.wait()
-		assert r == 0, "Failed to list set %s. Does it exist?" % ' '.join(set_name)
-		self.__logger.debug("Confirmed set exists.")
+		# Check configured sets exist
+		for set_name in (self.cfg.get_local_set_name(), self.cfg.get_net_set_name()):
+			p = await asyncio.create_subprocess_exec(self.nft,'list','set', *set_name)
+			r = await p.wait()
+			assert r == 0, "Failed to list set %s. Does it exist?" % ' '.join(set_name)
+		self.__logger.debug("Confirmed sets exist.")
 
 		self.initialized = True
 
