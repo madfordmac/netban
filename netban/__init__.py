@@ -141,7 +141,7 @@ class NetBanManager(object):
 			self.__logger.warning("%s not in set." % ip)
 			return
 		# Remove from the set.
-		p = await asyncio.create_subprocess_exec(self.nft,'delete','element',*set_name,'{',ip,'}')
+		p = await asyncio.create_subprocess_exec(self.nft,'delete','element',*nftset,'{',ip,'}')
 		r = await p.wait()
 		assert r == 0, "Removing %s from set failed." % ip
 		self.__logger.info("%s successfully unbanned." % ip)
