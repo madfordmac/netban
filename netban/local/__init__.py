@@ -96,7 +96,7 @@ class NetBanLocalFile(object):
 		for line in lines:
 			m = self.fail_re.search(line)
 			if m:
-				self.__logger.debug("Line matched failure pattern: %s" % line)
+				self.__logger.debug("Line matched failure pattern: %s" % line.strip())
 				ip = m.group('ip')
 				ban = await self.evaluateIp(ip)
 				if ban:
