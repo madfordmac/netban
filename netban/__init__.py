@@ -103,7 +103,9 @@ class NetBanManager(object):
 		for set_name in (self.cfg.get_local_set_name(), self.cfg.get_net_set_name()):
 			p = await asyncio.create_subprocess_exec(self.nft,'list','set', *set_name)
 			r = await p.wait()
-			assert r == 0, "Failed to list set %s. Does it exist?" % ' '.join(set_name)
+			if r != 0:
+				self.__logger.critical("Failed to list set %s. Does it exist?" % ' '.join(set_name))
+				raise SystemExit(-1)
 		self.__logger.debug("Confirmed sets exist.")
 
 		self.initialized = True
@@ -121,8 +123,10 @@ class NetBanManager(object):
 		self.__logger.debug("Received request to ban ip %s." % ip)
 		p = await asyncio.create_subprocess_exec(self.nft,'add','element',*nftset,'{',ip,'}')
 		r = await p.wait()
-		assert r == 0, "Adding %s to set failed." % ip
-		self.__logger.info("%s successfully banned." % ip)
+		if r != 0:
+			self.__logger.error("Adding %s to set failed." % ip)
+		else:
+			self.__logger.info("%s successfully banned." % ip)
 
 	async def __unban(self, ip, nftset):
 		"""Do the heavy lifting of unbanning an ip or cidr."""
@@ -131,7 +135,9 @@ class NetBanManager(object):
 		self.__logger.debug("Finding set membership.")
 		p = await asyncio.create_subprocess_exec(self.nft,'list','set',*nftset, stdout=PIPE)
 		(stdout, stderr) = await p.communicate()
-		assert p.returncode == 0, "Error retrieving members of set."
+		if p.returncode != 0:
+			self.__logger.error("Error retrieving members of set. Cannot unban %s." % ip)
+			return
 		for line in stdout.decode('utf-8').split('\n'):
 			if ip in line:
 				self.__logger.debug("Found %s in set; will remove." % ip)
@@ -143,8 +149,10 @@ class NetBanManager(object):
 		# Remove from the set.
 		p = await asyncio.create_subprocess_exec(self.nft,'delete','element',*nftset,'{',ip,'}')
 		r = await p.wait()
-		assert r == 0, "Removing %s from set failed." % ip
-		self.__logger.info("%s successfully unbanned." % ip)
+		if r != 0:
+			self.__logger.error("Removing %s from set failed." % ip)
+		else:
+			self.__logger.info("%s successfully unbanned." % ip)
 	
 	async def ban(self, ip):
 		"""Add a single IP address to the ban set."""
