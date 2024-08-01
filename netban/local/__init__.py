@@ -114,5 +114,5 @@ class NetBanLocalFile(object):
 		"""Determine if an IP has had enough hits to ban it."""
 		n = await self.r.incr(ip)
 		await self.r.expire(ip, self.cfg.get_ip_timeout())
-		self.__logger.debug("Login failure %(n)d for %(ip)s." % {'n': n, 'ip': ip})
+		self.__logger.info("Login failure %(n)d for %(ip)s." % {'n': n, 'ip': ip})
 		return n >= self.cfg.get_ip_limit()
