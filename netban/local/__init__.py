@@ -69,6 +69,7 @@ class NetBanLocalFile(object):
 			self.__logger.debug("Received new expiry notification.")
 			ip = message['data']
 			ip = ip.decode('ascii')
+			self.__logger.info("%s is expiring." % ip)
 			await self.ban_manager.unban(ip)
 
 	async def processUpdate(self):
