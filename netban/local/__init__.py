@@ -50,7 +50,8 @@ class NetBanLocalFile(object):
 		l.r = redis.from_url('redis://127.0.0.1/%d' % l.redis_db_num)
 		await l.r.config_set('notify-keyspace-events', 'Ex')
 		l.__logger.info("Created new connection to redis database %d." % l.redis_db_num)
-		asyncio.ensure_future(l.processExpiry())
+		# I think this is getting garbage collected now that it isn't a busy-wait.
+		l.expiry_task = asyncio.ensure_future(l.processExpiry())
 		l.__logger.info("Created future to handle IP ban expiry.")
 		return l
 
