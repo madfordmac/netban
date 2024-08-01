@@ -62,10 +62,7 @@ class NetBanLocalFile(object):
 		chan = r_sub.pubsub()
 		await chan.subscribe('__keyevent@%d__:expired' % self.redis_db_num)
 		self.__logger.debug("Subscribed to redis key expirations.")
-		while True:
-			message = await chan.get_message(ignore_subscribe_messages=True)
-			if message is None:
-				continue
+		for message in await chan.listen():
 			self.__logger.debug("Received new expiry notification.")
 			ip = message['data']
 			ip = ip.decode('ascii')
