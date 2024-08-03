@@ -50,7 +50,8 @@ class NetBanLocalFile(object):
 		l.r = redis.from_url('redis://127.0.0.1/%d' % l.redis_db_num)
 		await l.r.config_set('notify-keyspace-events', 'Ex')
 		l.__logger.info("Created new connection to redis database %d." % l.redis_db_num)
-		asyncio.ensure_future(l.processExpiry())
+		# I think this is getting garbage collected now that it isn't a busy-wait.
+		l.expiry_task = asyncio.ensure_future(l.processExpiry())
 		l.__logger.info("Created future to handle IP ban expiry.")
 		return l
 
@@ -63,12 +64,13 @@ class NetBanLocalFile(object):
 		await chan.subscribe('__keyevent@%d__:expired' % self.redis_db_num)
 		self.__logger.debug("Subscribed to redis key expirations.")
 		while True:
-			message = await chan.get_message(ignore_subscribe_messages=True)
+			message = await chan.get_message(ignore_subscribe_messages=True, timeout=60)
 			if message is None:
 				continue
 			self.__logger.debug("Received new expiry notification.")
 			ip = message['data']
 			ip = ip.decode('ascii')
+			self.__logger.info("%s is expiring." % ip)
 			await self.ban_manager.unban(ip)
 
 	async def processUpdate(self):
@@ -114,5 +116,5 @@ class NetBanLocalFile(object):
 		"""Determine if an IP has had enough hits to ban it."""
 		n = await self.r.incr(ip)
 		await self.r.expire(ip, self.cfg.get_ip_timeout())
-		self.__logger.debug("Login failure %(n)d for %(ip)s." % {'n': n, 'ip': ip})
+		self.__logger.info("Login failure %(n)d for %(ip)s." % {'n': n, 'ip': ip})
 		return n >= self.cfg.get_ip_limit()
