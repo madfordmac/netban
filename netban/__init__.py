@@ -16,6 +16,10 @@ class NetBanConfig(object):
 		cfg.read(config_file_name)
 		self.__logger.info("Read and parsed config file <%s>." % config_file_name)
 		self.cfg = cfg
+	
+	def get_debug(self):
+		"""Convenience method for getting the debug flag."""
+		return self.cfg['general'].get('debug')
 
 	def get_local_file(self):
 		"""Convenience method for getting the local file to watch."""

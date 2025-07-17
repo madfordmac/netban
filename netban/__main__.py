@@ -31,6 +31,8 @@ async def main(args):
 
 	# Set up main objects
 	config = NetBanConfig(args.config_file)
+	if not config.get_debug():
+		logger.setLevel(logging.INFO)
 	manager = NetBanManager(config)
 	await manager.setup()
 	local = await NetBanLocalFile.create(config, manager)
