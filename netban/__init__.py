@@ -19,7 +19,7 @@ class NetBanConfig(object):
 	
 	def get_debug(self):
 		"""Convenience method for getting the debug flag."""
-		return self.cfg['general'].get('debug')
+		return self.cfg['general'].getboolean('debug')
 
 	def get_local_file(self):
 		"""Convenience method for getting the local file to watch."""
