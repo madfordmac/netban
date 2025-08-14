@@ -101,7 +101,7 @@ class NetBanNet(object):
 		# Save reference so we don't get garbage collected.
 		self.next_update_job = asyncio.get_running_loop().create_task(self.updateLater())
 		# Collect nets from Elastic
-		self.__logger.debug("Updating banned networks…")
+		self.__logger.info("Updating banned networks…")
 		new_as = {}
 		tries = 0
 		result = {}
