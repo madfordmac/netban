@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from ipwhois.net import Net as ASNet
-from ipwhois.asn import ASNOrigin, ASNOriginLookupError
+import httpx
 from elasticsearch7 import AsyncElasticsearch
 from elasticsearch7.exceptions import ConnectionTimeout as ESConnectionTimeout
 from netaddr import IPSet, IPNetwork
-import aiohttp
 import asyncio
 import logging
 
@@ -17,6 +15,10 @@ class NetBanNet(object):
 		self.__logger = logging.getLogger('netban.net')
 		self.cfg = cfg
 		self.ban_manager = ban_manager
+		self.asnq = httpx.AsyncClient(
+			base_url='https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS',
+			timeout=10
+		)
 		self.MAX_ES_RETRY = 3
 		self.banned_as = {}
 		self.ban_space = IPSet()
@@ -25,6 +27,7 @@ class NetBanNet(object):
 		self.retry_interval = self.cfg.get_net_retry_interval()
 		self.es_host = self.cfg.get_elastic_host()
 		self.es_index = self.cfg.get_elastic_index()
+		self.es = None
 		self.__logger.debug("Will connect to Elasticsearch at <%s> and query the «%s» index." % (self.es_host, self.es_index))
 		self.query = self.buildQuery()
 		self.__logger.debug("Built Elasticsearch query: %r" % self.query)
@@ -150,14 +153,21 @@ class NetBanNet(object):
 		for asn in as_to_add:
 			topip = new_as[asn]
 			try:
-				asnets = ASNOrigin(ASNet(topip)).lookup('AS%d' % asn) # Wish I could await this line.
-			except ASNOriginLookupError as e:
-				self.__logger.warning('Unable to find nets for AS{asn:d} with base IP {ip:s}.'.format(asn=asn, ip=topip))
-				self.__logger.warning('Message was: {err:s}'.format(err=str(e)))
+				response = await self.asnq.get(str(asn))
+				response.raise_for_status()
+				asnets = [p['prefix'] for p in response.json()['data']['prefixes']]
+			except httpx.TimeoutException:
+				self.__logger.warning('Timeout querying prefixes for AS{asn:d}'.format(asn=asn))
 				continue
-			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d} using base IP {ip:s}.'.format(asn=asn, ip=topip, nnum=len(asnets['nets'])))
-			bans = [n['cidr'] for n in asnets['nets'] if n['cidr'].find(':') < 0]
-			nets_to_ban = IPSet([IPNetwork(n) for n in bans])
+			except httpx.RequestError as e:
+				self.__logger.warning('Error requesting {url:s}'.format(url=e.request.url))
+				continue
+			except httpx.HTTPStatusError as e:
+				self.__logger.warning('Received a {code:3d} response requesting {url:s}'.format(code=e.response.status_code, url=e.request.url))
+				self.__logger.warning('Text was: ' + e.response.text)
+				continue
+			self.__logger.debug('Found {nnum:d} nets to ban for AS{asn:d}.'.format(asn=asn, nnum=len(asnets)))
+			nets_to_ban = IPSet([IPNetwork(n) for n in asnets if n.find(':') < 0])
 			for c in (nets_to_ban - self.ban_space).iter_cidrs():
 				await self.ban_manager.netban(str(c))
 			self.banned_as[asn] = nets_to_ban
