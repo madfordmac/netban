@@ -16,7 +16,7 @@ class NetBanNet(object):
 		self.cfg = cfg
 		self.ban_manager = ban_manager
 		self.asnq = httpx.AsyncClient(
-			base_url='https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS',
+			base_url='https://stat.ripe.net/data/announced-prefixes',
 			timeout=10
 		)
 		self.MAX_ES_RETRY = 3
@@ -153,7 +153,7 @@ class NetBanNet(object):
 		for asn in as_to_add:
 			topip = new_as[asn]
 			try:
-				response = await self.asnq.get(str(asn))
+				response = await self.asnq.get('data.json?resource=AS{asn:d}'.format(asn=asn))
 				response.raise_for_status()
 				asnets = [p['prefix'] for p in response.json()['data']['prefixes']]
 			except httpx.TimeoutException:
