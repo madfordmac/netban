@@ -1,5 +1,6 @@
 redis[hiredis]
-pyinotify
+pyinotify-elephant-fork
 ipwhois
 elasticsearch7[async]
 netaddr
+httpx
