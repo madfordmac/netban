@@ -39,11 +39,8 @@ async def main(args):
 	net = await NetBanNet.create(config, manager)
 
 	# Run
-	#loop = asyncio.get_event_loop()
-	#loop.wait()
+	await asyncio.Event().wait()
 
 if __name__ == '__main__':
 	args = parser.parse_args()
-	loop = asyncio.get_event_loop()
-	loop.create_task(main(args))
-	loop.run_forever()
+	asyncio.run(main(args))
